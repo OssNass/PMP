@@ -39,42 +39,41 @@ jobs:
       - name: Install Main Dependencies
         run: pnpm install
 
-
-      - name: Install Playwright Browsers (for PDF Export)
-        run: pnpm exec playwright install --with-deps chromium
+      # 1. Install playwright-chromium package explicitly for Slidev
+      - name: Install Playwright Node Package & Browsers
+        run: |
+          pnpm add -D playwright-chromium
+          pnpm exec playwright install --with-deps chromium
 
       - name: Build Slidev Markdown files
         run: |
           mkdir -p dist
-          
-          # Create a simple index page
+
+          # Create index page
           echo "<!DOCTYPE html><html><head><title>Course Lectures</title><style>body{font-family:sans-serif; max-width: 800px; margin: 2rem auto; line-height: 1.6;} li{margin-bottom: 0.5rem;}</style></head><body>" > dist/index.html
           echo "<h1>Available Lectures</h1><ul>" >> dist/index.html
 
-          # --- FIX FOR THE EMPTY PDF ISSUE ---
-          # We create a tiny dummy file and export it to force Vite to pre-bundle 
-          # dependencies and warm up the cache. We then delete it.
+          # --- FIX FOR VITE WARMUP ---
           echo "Warming up Vite cache for Playwright..."
           echo "# Warmup" > warmup.md
           pnpm slidev export warmup.md --with-clicks > /dev/null 2>&1 || true
-          rm warmup.md warmup.pdf || true
-          # -----------------------------------
+          rm -f warmup.md warmup.pdf
+          # ---------------------------
 
-          # Loop through all files matching Lecture-*.md
+          # Loop through all matching markdown files
           for file in Lecture-*.md; do
             [ -e "$file" ] || continue 
 
             filename=$(basename "$file" .md)
             echo "Processing $filename..."
 
-            # 1. Build the browsable HTML
+            # 1. Build browsable HTML
             pnpm slidev build "$file" --base /${{ github.event.repository.name }}/$filename/ --out dist/$filename --with-clicks
 
-            # 2. Export the downloadable PDF
-            # Added --wait 1500 to give the SPA an extra 1.5 seconds to hydrate fonts/components
+            # 2. Export downloadable PDF
             pnpm slidev export "$file" --output dist/$filename.pdf --wait 1500 --with-clicks
 
-            # 3. Append links to the index file
+            # 3. Append links to index
             echo "<li><strong>$filename</strong>: <a href=\"$filename/\">View Slides</a> | <a href=\"$filename.pdf\">Download PDF</a></li>" >> dist/index.html
           done
 
