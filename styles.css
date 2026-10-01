@@ -1,0 +1,24 @@
+/* style.css */
+
+/* Custom RTL class */
+.rtl {
+  direction: rtl;
+  text-align: right;
+  unicode-bidi: isolate;
+}
+
+.rtl ul, .rtl ol {
+  padding-right: 1.5rem;
+  padding-left: 0;
+  list-style-position: inside;
+}
+
+.rtl pre, .rtl code {
+  direction: ltr;
+  text-align: left;
+}
+
+/* Custom font or global slide background overrides */
+.slidev-layout {
+  font-family: 'Cairo', sans-serif;
+}
