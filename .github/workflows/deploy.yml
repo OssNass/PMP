@@ -1,0 +1,93 @@
+name: Deploy Slidev to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main # Change this if your default branch is different
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install Main Dependencies
+        run: pnpm install
+
+
+      - name: Install Playwright Browsers (for PDF Export)
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build Slidev Markdown files
+        run: |
+          mkdir -p dist
+          
+          # Create a simple index page
+          echo "<!DOCTYPE html><html><head><title>Course Lectures</title><style>body{font-family:sans-serif; max-width: 800px; margin: 2rem auto; line-height: 1.6;} li{margin-bottom: 0.5rem;}</style></head><body>" > dist/index.html
+          echo "<h1>Available Lectures</h1><ul>" >> dist/index.html
+
+          # --- FIX FOR THE EMPTY PDF ISSUE ---
+          # We create a tiny dummy file and export it to force Vite to pre-bundle 
+          # dependencies and warm up the cache. We then delete it.
+          echo "Warming up Vite cache for Playwright..."
+          echo "# Warmup" > warmup.md
+          pnpm slidev export warmup.md --with-clicks > /dev/null 2>&1 || true
+          rm warmup.md warmup.pdf || true
+          # -----------------------------------
+
+          # Loop through all files matching Lecture-*.md
+          for file in Lecture-*.md; do
+            [ -e "$file" ] || continue 
+
+            filename=$(basename "$file" .md)
+            echo "Processing $filename..."
+
+            # 1. Build the browsable HTML
+            pnpm slidev build "$file" --base /${{ github.event.repository.name }}/$filename/ --out dist/$filename --with-clicks
+
+            # 2. Export the downloadable PDF
+            # Added --wait 1500 to give the SPA an extra 1.5 seconds to hydrate fonts/components
+            pnpm slidev export "$file" --output dist/$filename.pdf --wait 1500 --with-clicks
+
+            # 3. Append links to the index file
+            echo "<li><strong>$filename</strong>: <a href=\"$filename/\">View Slides</a> | <a href=\"$filename.pdf\">Download PDF</a></li>" >> dist/index.html
+          done
+
+          echo "</ul></body></html>" >> dist/index.html
+
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
