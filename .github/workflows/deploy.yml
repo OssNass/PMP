@@ -47,7 +47,7 @@ jobs:
 
       - name: Install Playwright Node Package & Browsers
         run: |
-          pnpm add -D playwright-chromium
+          cd slidev-theme-scholarly && pnpm add playwright && cd .. && pnpm add -D playwright-chromium
           pnpm exec playwright install --with-deps chromium
 
       - name: Build Slidev Markdown files
