@@ -36,10 +36,15 @@ jobs:
           node-version: 24
           cache: 'pnpm'
 
-      - name: Install Main Dependencies
-        run: pnpm install
+      - name: Install Main & Theme Dependencies
+        run: |
+          pnpm install
+          # If slidev-theme-scholarly has its own package.json, install its dependencies
+          if [ -f "./slidev-theme-scholarly/package.json" ]; then
+            echo "Installing local theme dependencies..."
+            cd slidev-theme-scholarly && pnpm install && cd ..
+          fi
 
-      # 1. Install playwright-chromium package explicitly for Slidev
       - name: Install Playwright Node Package & Browsers
         run: |
           pnpm add -D playwright-chromium
@@ -53,12 +58,12 @@ jobs:
           echo "<!DOCTYPE html><html><head><title>Course Lectures</title><style>body{font-family:sans-serif; max-width: 800px; margin: 2rem auto; line-height: 1.6;} li{margin-bottom: 0.5rem;}</style></head><body>" > dist/index.html
           echo "<h1>Available Lectures</h1><ul>" >> dist/index.html
 
-          # --- FIX FOR VITE WARMUP ---
+          # --- VITE CACHE WARMUP ---
           echo "Warming up Vite cache for Playwright..."
           echo "# Warmup" > warmup.md
-          pnpm slidev export warmup.md --with-clicks > /dev/null 2>&1 || true
+          pnpm slidev export warmup.md --theme ./slidev-theme-scholarly --with-clicks > /dev/null 2>&1 || true
           rm -f warmup.md warmup.pdf
-          # ---------------------------
+          # -------------------------
 
           # Loop through all matching markdown files
           for file in Lecture-*.md; do
@@ -68,10 +73,10 @@ jobs:
             echo "Processing $filename..."
 
             # 1. Build browsable HTML
-            pnpm slidev build "$file" --base /${{ github.event.repository.name }}/$filename/ --out dist/$filename --with-clicks
+            pnpm slidev build "$file" --theme ./slidev-theme-scholarly --base /${{ github.event.repository.name }}/$filename/ --out dist/$filename --with-clicks
 
             # 2. Export downloadable PDF
-            pnpm slidev export "$file" --output dist/$filename.pdf --wait 1500 --with-clicks
+            pnpm slidev export "$file" --theme ./slidev-theme-scholarly --output dist/$filename.pdf --wait 1500 --with-clicks
 
             # 3. Append links to index
             echo "<li><strong>$filename</strong>: <a href=\"$filename/\">View Slides</a> | <a href=\"$filename.pdf\">Download PDF</a></li>" >> dist/index.html
